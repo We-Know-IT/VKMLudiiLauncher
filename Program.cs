@@ -11,41 +11,33 @@ await StartPlaywrightAsync();
 
 async Task StartPlaywrightAsync()
 {
-    // Initialize Playwright and launch the browser
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
     {
         Headless = false,
-        Args = new[] { "--start-fullscreen" }
     });
 
     var page = await browser.NewPageAsync();
+    await page.SetViewportSizeAsync(1024, 768); 
     await page.GotoAsync($"http://localhost:3000/{exhibitionNumber}");
 
-    // Handle request events
     page.Request += async (_, request) =>
     {
         Console.WriteLine("Request event: " + request.Url);
         var gameName = request.Url;
         if (gameName.Contains("8080"))
         {
-            // Extract the game name
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
-
-            // Close the browser before proceeding
-            await browser.CloseAsync();
-
-            // Launch the JAR process
-            await LaunchJarAsync(gameName);
+            
+            await LaunchJarAsync(gameName, browser);
         }
     };
 
-    // Keep the initial browser running until the event is triggered
-    Console.WriteLine("Browser running. Waiting for a matching request...");
-    await Task.Delay(-1); // Keeps the browser open until the process completes
+    Console.WriteLine("Browser running.");
+    await Task.Delay(-1);
 }
 
-async Task LaunchJarAsync(string gameName)
+async Task LaunchJarAsync(string gameName, IBrowser browser)
 {
     string jarFilePath = $"C:/Ludii/{gameName}.jar";
     string javaPath = "java";
@@ -64,11 +56,9 @@ async Task LaunchJarAsync(string gameName)
 
         jarProcess = new Process { StartInfo = startInfo };
         jarProcess.Start();
-
-        // Start the quit button browser
+        await Task.Delay(3000);
+        await browser.CloseAsync();
         await StartQuitButtonAsync();
-
-        // Wait for the JAR process to exit
         jarProcess.WaitForExit();
     }
     catch (Exception ex)
@@ -79,33 +69,31 @@ async Task LaunchJarAsync(string gameName)
 
 async Task StartQuitButtonAsync()
 {
-    // Create a separate Playwright instance for the quit button
     using var quitPlaywright = await Playwright.CreateAsync();
-    await using var browser = await quitPlaywright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-    {
-        Headless = false
+    await using var browser = await quitPlaywright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
+        Headless = false,
     });
+    
 
     var page = await browser.NewPageAsync();
+    await page.SetViewportSizeAsync(100, 100);
     string filePath = @"B:\Projects\VKMLudiiLauncher\QuitButton\index.html";
     string fileUrl = new Uri(filePath).AbsoluteUri;
 
     await page.GotoAsync(fileUrl);
-
-    // Handle "Quit" button interaction
+    Process.Start("wmctrl", "-r Chromium -b add,above");
     page.Console += async (_, message) =>
     {
         Console.WriteLine("Message event: " + message.Text);
         if (message.Text == "Quit" && !jarProcess.HasExited)
         {
-            jarProcess.Kill(true);
-            jarProcess.WaitForExit();
             await browser.CloseAsync();
-            await StartPlaywrightAsync();
+            StartPlaywrightAsync();
+            await Task.Delay(3000);
+            jarProcess.Kill(true);
         }
     };
 
-    // Keep the quit button page open until explicitly closed
-    Console.WriteLine("Quit button browser open. Press CTRL+C to exit if needed.");
-    await Task.Delay(-1); // Keeps the browser open
+    Console.WriteLine("Close quit button. Press CTRL+C to exit if needed.");
+    await Task.Delay(-1);
 }
