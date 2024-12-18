@@ -37,15 +37,12 @@ async Task StartPlaywrightAsync()
     await Task.Delay(-1);
 }
 
-async Task LaunchJarAsync(string gameName, IBrowser browser)
-{
+async Task LaunchJarAsync(string gameName, IBrowser browser) {
     string jarFilePath = $"C:/Ludii/{gameName}.jar";
     string javaPath = "java";
 
-    try
-    {
-        var startInfo = new ProcessStartInfo
-        {
+    try {
+        var startInfo = new ProcessStartInfo {
             FileName = javaPath,
             Arguments = $"-jar \"{jarFilePath}\"",
             RedirectStandardOutput = true,
@@ -53,22 +50,43 @@ async Task LaunchJarAsync(string gameName, IBrowser browser)
             UseShellExecute = false,
             CreateNoWindow = true
         };
+        
 
         jarProcess = new Process { StartInfo = startInfo };
-        jarProcess.Start();
-        await Task.Delay(3000);
-        await browser.CloseAsync();
+        
+        jarProcess.OutputDataReceived += (sender, args) =>
+        {
+            if (!string.IsNullOrEmpty(args.Data))
+            {
+                Console.WriteLine($"[JAR Output]: {args.Data}");
+                // You can add additional logic here based on the output
+            }
+        };
+
+        jarProcess.ErrorDataReceived += (sender, args) =>
+        {
+            if (!string.IsNullOrEmpty(args.Data))
+            {
+                Console.WriteLine($"[JAR Error]: {args.Data}");
+                // You can handle errors from the process here
+            }
+        };
+        if (jarProcess.Start()){
+            jarProcess.BeginOutputReadLine();
+            jarProcess.BeginErrorReadLine();
+            await Task.Delay(3000);
+            await browser.CloseAsync();
+        }
+        
         await StartQuitButtonAsync();
         jarProcess.WaitForExit();
     }
-    catch (Exception ex)
-    {
+    catch (Exception ex) {
         Console.WriteLine($"An error occurred: {ex.Message}");
     }
 }
 
-async Task StartQuitButtonAsync()
-{
+async Task StartQuitButtonAsync() {
     using var quitPlaywright = await Playwright.CreateAsync();
     await using var browser = await quitPlaywright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
@@ -81,9 +99,7 @@ async Task StartQuitButtonAsync()
     string fileUrl = new Uri(filePath).AbsoluteUri;
 
     await page.GotoAsync(fileUrl);
-    Process.Start("wmctrl", "-r Chromium -b add,above");
-    page.Console += async (_, message) =>
-    {
+    page.Console += async (_, message) =>  {
         Console.WriteLine("Message event: " + message.Text);
         if (message.Text == "Quit" && !jarProcess.HasExited)
         {
