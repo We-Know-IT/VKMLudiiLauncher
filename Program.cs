@@ -1,5 +1,20 @@
 ﻿using Microsoft.Playwright;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+[DllImport("user32.dll", SetLastError = true)]
+static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+[DllImport("user32.dll", SetLastError = true)]
+static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+const uint SWP_NOMOVE = 0x0002;
+const uint SWP_NOSIZE = 0x0001;
+const uint SWP_SHOWWINDOW = 0x0040;
+
+IntPtr HWND_TOPMOST = new IntPtr(-1);
+IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+
 
 string exhibitionNumber;
 
@@ -9,31 +24,31 @@ exhibitionNumber = Console.ReadLine();
 Process jarProcess;
 await StartPlaywrightAsync();
 
-async Task StartPlaywrightAsync()
-{
+async Task StartPlaywrightAsync(){
+    var url = $"http://localhost:3000/{exhibitionNumber}";
     using var playwright = await Playwright.CreateAsync();
-    await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-    {
+    await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
+        Args = new[] { "--start-fullscreen" }
+
     });
 
     var page = await browser.NewPageAsync();
-    await page.SetViewportSizeAsync(1024, 768); 
-    await page.GotoAsync($"http://localhost:3000/{exhibitionNumber}");
+    await page.GotoAsync(url);
+    await page.EvaluateAsync("() => document.documentElement.requestFullscreen()");
 
-    page.Request += async (_, request) =>
-    {
+    await page.SetViewportSizeAsync(1920, 1080); 
+    
+    page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
         var gameName = request.Url;
-        if (gameName.Contains("8080"))
-        {
+
+        if (gameName.Contains("8080")) {
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
             
             await LaunchJarAsync(gameName, browser);
         }
     };
-
-    Console.WriteLine("Browser running.");
     await Task.Delay(-1);
 }
 
@@ -54,21 +69,15 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
 
         jarProcess = new Process { StartInfo = startInfo };
         
-        jarProcess.OutputDataReceived += (sender, args) =>
-        {
-            if (!string.IsNullOrEmpty(args.Data))
-            {
+        jarProcess.OutputDataReceived += (sender, args) => {
+            if (!string.IsNullOrEmpty(args.Data)) {
                 Console.WriteLine($"[JAR Output]: {args.Data}");
-                // You can add additional logic here based on the output
             }
         };
 
-        jarProcess.ErrorDataReceived += (sender, args) =>
-        {
-            if (!string.IsNullOrEmpty(args.Data))
-            {
+        jarProcess.ErrorDataReceived += (sender, args) => {
+            if (!string.IsNullOrEmpty(args.Data)) {
                 Console.WriteLine($"[JAR Error]: {args.Data}");
-                // You can handle errors from the process here
             }
         };
         if (jarProcess.Start()){
@@ -86,13 +95,13 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
     }
 }
 
-async Task StartQuitButtonAsync() {
+async Task StartQuitButtonAsync(){
+    var exit = false;
     using var quitPlaywright = await Playwright.CreateAsync();
     await using var browser = await quitPlaywright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
     });
     
-
     var page = await browser.NewPageAsync();
     await page.SetViewportSizeAsync(100, 100);
     string filePath = @"B:\Projects\VKMLudiiLauncher\QuitButton\index.html";
@@ -101,15 +110,21 @@ async Task StartQuitButtonAsync() {
     await page.GotoAsync(fileUrl);
     page.Console += async (_, message) =>  {
         Console.WriteLine("Message event: " + message.Text);
-        if (message.Text == "Quit" && !jarProcess.HasExited)
-        {
+        if (message.Text == "Quit" && !jarProcess.HasExited) {
             await browser.CloseAsync();
             StartPlaywrightAsync();
             await Task.Delay(3000);
             jarProcess.Kill(true);
+            exit = true;
         }
     };
-
-    Console.WriteLine("Close quit button. Press CTRL+C to exit if needed.");
+    await Task.Delay(3000);
+    IntPtr hWnd = FindWindow(null, "Index.html - Chromium"); // Replace with the actual window title
+    if (hWnd != IntPtr.Zero) {
+        SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        Console.WriteLine("Browser is now always on top.");
+    } else {
+        Console.WriteLine("Browser window not found.");
+    }
     await Task.Delay(-1);
 }
