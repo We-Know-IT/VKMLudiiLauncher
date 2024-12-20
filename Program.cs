@@ -25,19 +25,18 @@ Process jarProcess;
 await StartPlaywrightAsync();
 
 async Task StartPlaywrightAsync(){
-    var url = $"http://localhost:3000/{exhibitionNumber}";
+    var url = $"http://gamescreen.smvk.se/{exhibitionNumber}";
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
-        Args = new[] { "--start-fullscreen" }
-
+        Args = new[] { "--app=" + url}
     });
 
     var page = await browser.NewPageAsync();
     await page.GotoAsync(url);
     await page.EvaluateAsync("() => document.documentElement.requestFullscreen()");
 
-    await page.SetViewportSizeAsync(1920, 1080); 
+    await page.SetViewportSizeAsync(1600, 900); 
     
     page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
@@ -53,6 +52,8 @@ async Task StartPlaywrightAsync(){
 }
 
 async Task LaunchJarAsync(string gameName, IBrowser browser) {
+    // string jarFilePath = $"/home/pi/Hämtningar/publish/Ludii/{gameName}.jar";
+
     string jarFilePath = $"C:/Ludii/{gameName}.jar";
     string javaPath = "java";
 
