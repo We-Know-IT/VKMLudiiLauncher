@@ -56,7 +56,7 @@ async Task StartPlaywrightAsync(){
 async Task LaunchJarAsync(string gameName, IBrowser browser) {
     // string jarFilePath = $"/home/pi/Hämtningar/publish/Ludii/{gameName}.jar";
     
-    string jarFilePath = $"Ludii/{gameName}.jar";
+    string jarFilePath = $"..\\..\\..\\Ludii/{gameName}.jar"; // Needed to go back from \bin\Debug\net8.0 to be able to find "Ludii" folder - ..\\..\\..\\ is not the best solution
     string javaPath = "java";
 
     try {
@@ -71,6 +71,7 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
         
 
         jarProcess = new Process { StartInfo = startInfo };
+        Console.WriteLine($"The Full Path: {Path.GetFullPath(jarFilePath)}");
         
         jarProcess.OutputDataReceived += (sender, args) => {
             if (!string.IsNullOrEmpty(args.Data)) {
