@@ -20,7 +20,7 @@ async Task StartPlaywrightAsync(){
     var page = await browser.NewPageAsync();
     await page.GotoAsync(url);
 
-    await page.SetViewportSizeAsync(1920, 1080); 
+    await page.SetViewportSizeAsync(1900, 1000); 
     
     page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
@@ -71,7 +71,7 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
             jarProcess.BeginOutputReadLine();
             jarProcess.BeginErrorReadLine();
             StartPlaywrightAsync();
-            await Task.Delay(5000);
+            await Task.Delay(4000);
             await browser.CloseAsync();
         }
         
