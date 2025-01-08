@@ -2,11 +2,6 @@
 using System.Diagnostics;
 
 
-
-IntPtr HWND_TOPMOST = new IntPtr(-1);
-IntPtr HWND_NOTOPMOST = new IntPtr(-2);
-
-
 string exhibitionNumber;
 
 Console.WriteLine("What is the Exhibition Number?");
@@ -71,16 +66,16 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
                 Console.WriteLine($"[JAR Error]: {args.Data}");
             }
         };
+
         if (jarProcess.Start()){
             jarProcess.BeginOutputReadLine();
             jarProcess.BeginErrorReadLine();
+            StartPlaywrightAsync();
+            await Task.Delay(5000);
             await browser.CloseAsync();
         }
         
         jarProcess.WaitForExit();
-        if (jarProcess.HasExited){
-            await StartPlaywrightAsync();
-        }
     }
     catch (Exception ex) {
         Console.WriteLine($"An error occurred: {ex.Message}");
