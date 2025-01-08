@@ -8,6 +8,9 @@ static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 [DllImport("user32.dll", SetLastError = true)]
 static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+[DllImport("user32.dll")]
+static extern bool SetForegroundWindow(IntPtr hWnd);
+
 const uint SWP_NOMOVE = 0x0002;
 const uint SWP_NOSIZE = 0x0001;
 const uint SWP_SHOWWINDOW = 0x0040;
@@ -29,7 +32,6 @@ async Task StartPlaywrightAsync(){
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
-        Args = new[] { "--app=" + url}
     });
 
     var page = await browser.NewPageAsync();
@@ -53,8 +55,8 @@ async Task StartPlaywrightAsync(){
 
 async Task LaunchJarAsync(string gameName, IBrowser browser) {
     // string jarFilePath = $"/home/pi/Hämtningar/publish/Ludii/{gameName}.jar";
-
-    string jarFilePath = $"C:/Ludii/{gameName}.jar";
+    
+    string jarFilePath = $"Ludii/{gameName}.jar";
     string javaPath = "java";
 
     try {
@@ -84,8 +86,18 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
         if (jarProcess.Start()){
             jarProcess.BeginOutputReadLine();
             jarProcess.BeginErrorReadLine();
-            await Task.Delay(3000);
-            await browser.CloseAsync();
+            await Task.Delay(10000);
+            IntPtr hWnd = jarProcess.MainWindowHandle;
+            if (hWnd != IntPtr.Zero)
+            {
+                SetForegroundWindow(hWnd);
+                Console.WriteLine("JAR window brought to the front.");
+            }
+            else
+            {
+                Console.WriteLine("Could not find the JAR window.");
+            }
+            // await browser.CloseAsync();
         }
         
         await StartQuitButtonAsync();
@@ -113,14 +125,14 @@ async Task StartQuitButtonAsync(){
         Console.WriteLine("Message event: " + message.Text);
         if (message.Text == "Quit" && !jarProcess.HasExited) {
             await browser.CloseAsync();
-            StartPlaywrightAsync();
+            // StartPlaywrightAsync();
             await Task.Delay(3000);
             jarProcess.Kill(true);
             exit = true;
         }
     };
     await Task.Delay(3000);
-    IntPtr hWnd = FindWindow(null, "Index.html - Chromium"); // Replace with the actual window title
+    IntPtr hWnd = FindWindow(null, "Index.html - Chromium");
     if (hWnd != IntPtr.Zero) {
         SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         Console.WriteLine("Browser is now always on top.");
