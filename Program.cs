@@ -20,7 +20,7 @@ async Task StartPlaywrightAsync(){
     var page = await browser.NewPageAsync();
     await page.GotoAsync(url);
 
-    await page.SetViewportSizeAsync(1900, 1000); 
+    await page.SetViewportSizeAsync(1920, 1080); 
     
     page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
@@ -28,18 +28,59 @@ async Task StartPlaywrightAsync(){
 
         if (gameName.Contains("8080")) {
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
-            
-            await LaunchJarAsync(gameName, browser);
+            page.GotoAsync("http://gamescreen.smvk.se/exhibition-home");
+            await LaunchJarAsync(gameName);
+
         }
     };
     await Task.Delay(-1);
 }
 
-async Task LaunchJarAsync(string gameName, IBrowser browser) {
-    // string jarFilePath = $"/home/pi/Hämtningar/publish/Ludii/{gameName}.jar";
+void LaunchQuitButton(){ 
+    var pythonScriptPath = "/home/pi/Hämtningar/QuitButton.py";
+    var pythonExecutable = "python";
+
+    try {
+        ProcessStartInfo start = new ProcessStartInfo {
+            FileName = pythonExecutable,
+            Arguments = pythonScriptPath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        var pyProcess = Process.Start(start);
+        pyProcess.OutputDataReceived += (sender, eventArgs) => {
+            Console.WriteLine(eventArgs.Data);
+            if (eventArgs.Data != null && eventArgs.Data.Contains("Quit")){
+                jarProcess.Kill();
+                pyProcess.Kill();
+            }
+        };
+        pyProcess.ErrorDataReceived += (sender, eventArgs) => {
+            Console.WriteLine(eventArgs.Data);
+            if (eventArgs.Data != null && eventArgs.Data.Contains("Quit")){
+                jarProcess.Kill();
+                pyProcess.Kill();
+            }
+        };
+        
+        
+        pyProcess.BeginOutputReadLine();
+        pyProcess.BeginErrorReadLine();
+        
+        pyProcess.WaitForExit();
+    }
+    catch (Exception ex) {
+        Console.WriteLine($"An error occurred: {ex.Message}");
+    }
+}
+
+async Task LaunchJarAsync(string gameName) {
+    var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
     
-    string jarFilePath = $"..\\..\\..\\Ludii/{gameName}.jar"; // Needed to go back from \bin\Debug\net8.0 to be able to find "Ludii" folder - ..\\..\\..\\ is not the best solution
-    string javaPath = "java";
+    // var jarFilePath = $"..\\..\\..\\Ludii/{gameName}.jar"; // Needed to go back from \bin\Debug\net8.0 to be able to find "Ludii" folder - ..\\..\\..\\ is not the best solution
+    var javaPath = "java";
 
     try {
         var startInfo = new ProcessStartInfo {
@@ -53,29 +94,12 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
         
 
         jarProcess = new Process { StartInfo = startInfo };
-        Console.WriteLine($"The Full Path: {Path.GetFullPath(jarFilePath)}");
-        
-        jarProcess.OutputDataReceived += (sender, args) => {
-            if (!string.IsNullOrEmpty(args.Data)) {
-                Console.WriteLine($"[JAR Output]: {args.Data}");
-            }
-        };
-
-        jarProcess.ErrorDataReceived += (sender, args) => {
-            if (!string.IsNullOrEmpty(args.Data)) {
-                Console.WriteLine($"[JAR Error]: {args.Data}");
-            }
-        };
 
         if (jarProcess.Start()){
-            jarProcess.BeginOutputReadLine();
-            jarProcess.BeginErrorReadLine();
-            StartPlaywrightAsync();
-            await Task.Delay(4000);
-            await browser.CloseAsync();
+            LaunchQuitButton();
         }
-        
         jarProcess.WaitForExit();
+        
     }
     catch (Exception ex) {
         Console.WriteLine($"An error occurred: {ex.Message}");
