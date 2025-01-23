@@ -15,6 +15,15 @@ async Task StartPlaywrightAsync(){
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
+        Args = [
+            "--disable-gpu",             // Disable GPU acceleration
+            "--no-sandbox",              // Bypass sandboxing issues
+            "--disable-dev-shm-usage",   // Prevent shared memory overflow
+            "--disable-software-rasterizer",
+            "--enable-logging=stderr",   // Log Chromium errors
+            "--v=1",                      // Verbose logging
+            "-disable-dev-shm-usage"
+        ],
     });
 
     var page = await browser.NewPageAsync();
@@ -28,10 +37,13 @@ async Task StartPlaywrightAsync(){
 
         if (gameName.Contains("8080")) {
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
-            page.GotoAsync("http://gamescreen.smvk.se/exhibition-home");
+            await page.GotoAsync("http://gamescreen.smvk.se/exhibition-home");
             await LaunchJarAsync(gameName);
-
         }
+    };
+    browser.Disconnected += (_, _) => {
+        Console.WriteLine("Browser crashed. Restarting...");
+        page.GotoAsync(url);
     };
     await Task.Delay(-1);
 }
