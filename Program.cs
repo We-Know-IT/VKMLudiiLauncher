@@ -22,7 +22,11 @@ async Task StartPlaywrightAsync(){
             "--disable-software-rasterizer",
             "--enable-logging=stderr",   // Log Chromium errors
             "--v=1",                      // Verbose logging
-            "-disable-dev-shm-usage"
+            "-disable-dev-shm-usage",
+            "--ignore-certificate-errors",
+            "--disable-ipv6",
+            "--disable-site-isolation-trials",
+            
         ],
     });
 
@@ -41,10 +45,10 @@ async Task StartPlaywrightAsync(){
             await LaunchJarAsync(gameName);
         }
     };
-    browser.Disconnected += (_, _) => {
-        Console.WriteLine("Browser crashed. Restarting...");
-        page.GotoAsync(url);
-    };
+    await page.EvaluateAsync(@"setInterval(() => {
+    console.log('Keeping session alive');
+    fetch(window.location.href, { method: 'HEAD' });
+}, 10000);"); // Sends a request every 10 seconds
     await Task.Delay(-1);
 }
 
