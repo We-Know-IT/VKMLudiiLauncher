@@ -18,6 +18,7 @@ async Task StartPlaywrightAsync(){
     });
 
     var page = await browser.NewPageAsync();
+    page.SetDefaultNavigationTimeout(0);
     await page.GotoAsync(url);
 
     await page.SetViewportSizeAsync(1920, 1080); 
@@ -37,13 +38,11 @@ async Task StartPlaywrightAsync(){
 
 Task LaunchJarAsync(string gameName) {
     var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
-    
-    // var jarFilePath = $"..\\..\\..\\Ludii/{gameName}.jar"; // Needed to go back from \bin\Debug\net8.0 to be able to find "Ludii" folder - ..\\..\\..\\ is not the best solution
-    var javaPath = "java";
+    var pythonScriptPath = $"/home/pi/Hämtningar/QuitButton.py";
 
-    try {
+    try{
         var startInfo = new ProcessStartInfo {
-            FileName = javaPath,
+            FileName = "java",
             Arguments = $"-jar \"{jarFilePath}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -51,13 +50,41 @@ Task LaunchJarAsync(string gameName) {
             CreateNoWindow = true
         };
         
-        var jarProcess = new Process { StartInfo = startInfo };
-        
-        if (jarProcess.Start()){
-            // Show Button
-        }
+        var jarProcess = Process.Start(startInfo);
         
         jarProcess.WaitForExit();
+        
+        var pyStartInfo = new ProcessStartInfo{
+            FileName = "python",
+            Arguments = pythonScriptPath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        
+        var pyProcess = Process.Start(pyStartInfo);
+        
+        pyProcess.OutputDataReceived += (sender, eventArgs) => {
+            if (eventArgs.Data.Contains("Quit")){
+                jarProcess.Kill();
+                pyProcess.Kill();
+            }
+            Console.WriteLine(eventArgs.Data);
+        };
+        
+        pyProcess.ErrorDataReceived += (sender, eventArgs) => {
+            if (eventArgs.Data.Contains("Quit")){
+                jarProcess.Kill();
+                pyProcess.Kill();
+            }
+            Console.WriteLine(eventArgs.Data);
+        };
+
+        pyProcess.BeginOutputReadLine();
+        pyProcess.BeginErrorReadLine();
+
+        pyProcess.WaitForExit();
     }
     catch (Exception ex) {
         Console.WriteLine($"An error occurred: {ex.Message}");
