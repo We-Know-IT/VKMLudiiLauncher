@@ -2,13 +2,13 @@
 using System.Diagnostics;
 
 
-string exhibitionNumber;
-
 Console.WriteLine("What is the Exhibition Number?");
-exhibitionNumber = Console.ReadLine();
+var exhibitionNumber = Console.ReadLine();
 
-Process jarProcess;
 await StartPlaywrightAsync();
+return;
+
+
 
 async Task StartPlaywrightAsync(){
     var url = $"http://gamescreen.smvk.se/{exhibitionNumber}";
@@ -20,7 +20,7 @@ async Task StartPlaywrightAsync(){
     var page = await browser.NewPageAsync();
     await page.GotoAsync(url);
 
-    await page.SetViewportSizeAsync(1900, 1000); 
+    await page.SetViewportSizeAsync(1920, 1080); 
     
     page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
@@ -29,17 +29,17 @@ async Task StartPlaywrightAsync(){
         if (gameName.Contains("8080")) {
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
             
-            await LaunchJarAsync(gameName, browser);
+            await LaunchJarAsync(gameName);
         }
     };
     await Task.Delay(-1);
 }
 
-async Task LaunchJarAsync(string gameName, IBrowser browser) {
-    // string jarFilePath = $"/home/pi/Hämtningar/publish/Ludii/{gameName}.jar";
+Task LaunchJarAsync(string gameName) {
+    var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
     
-    string jarFilePath = $"..\\..\\..\\Ludii/{gameName}.jar"; // Needed to go back from \bin\Debug\net8.0 to be able to find "Ludii" folder - ..\\..\\..\\ is not the best solution
-    string javaPath = "java";
+    // var jarFilePath = $"..\\..\\..\\Ludii/{gameName}.jar"; // Needed to go back from \bin\Debug\net8.0 to be able to find "Ludii" folder - ..\\..\\..\\ is not the best solution
+    var javaPath = "java";
 
     try {
         var startInfo = new ProcessStartInfo {
@@ -51,28 +51,10 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
             CreateNoWindow = true
         };
         
-
-        jarProcess = new Process { StartInfo = startInfo };
-        Console.WriteLine($"The Full Path: {Path.GetFullPath(jarFilePath)}");
+        var jarProcess = new Process { StartInfo = startInfo };
         
-        jarProcess.OutputDataReceived += (sender, args) => {
-            if (!string.IsNullOrEmpty(args.Data)) {
-                Console.WriteLine($"[JAR Output]: {args.Data}");
-            }
-        };
-
-        jarProcess.ErrorDataReceived += (sender, args) => {
-            if (!string.IsNullOrEmpty(args.Data)) {
-                Console.WriteLine($"[JAR Error]: {args.Data}");
-            }
-        };
-
         if (jarProcess.Start()){
-            jarProcess.BeginOutputReadLine();
-            jarProcess.BeginErrorReadLine();
-            StartPlaywrightAsync();
-            await Task.Delay(4000);
-            await browser.CloseAsync();
+            // Show Button
         }
         
         jarProcess.WaitForExit();
@@ -80,4 +62,5 @@ async Task LaunchJarAsync(string gameName, IBrowser browser) {
     catch (Exception ex) {
         Console.WriteLine($"An error occurred: {ex.Message}");
     }
+    return Task.CompletedTask;
 }
