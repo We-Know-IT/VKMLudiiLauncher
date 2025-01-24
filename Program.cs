@@ -40,54 +40,67 @@ Task LaunchJarAsync(string gameName) {
     var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
     var pythonScriptPath = $"/home/pi/Hämtningar/QuitButton.py";
 
-    try{
-        var startInfo = new ProcessStartInfo {
+    try {
+        // Start the JAR
+        var jarStartInfo = new ProcessStartInfo {
             FileName = "java",
             Arguments = $"-jar \"{jarFilePath}\"",
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+            CreateNoWindow         = true
         };
-        
-        var jarProcess = Process.Start(startInfo);
-        
-        jarProcess.WaitForExit();
-        
-        var pyStartInfo = new ProcessStartInfo{
+        var jarProcess = new Process { StartInfo = jarStartInfo, EnableRaisingEvents = true };
+
+        // Start the Python script
+        var pyStartInfo = new ProcessStartInfo {
             FileName = "python",
             Arguments = pythonScriptPath,
-            UseShellExecute = false,
+            UseShellExecute        = false,
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
+            RedirectStandardError  = true,
+            CreateNoWindow         = true
         };
-        
-        var pyProcess = Process.Start(pyStartInfo);
-        
-        pyProcess.OutputDataReceived += (sender, eventArgs) => {
-            if (eventArgs.Data.Contains("Quit")){
-                jarProcess.Kill();
-                pyProcess.Kill();
-            }
-            Console.WriteLine(eventArgs.Data);
-        };
-        
-        pyProcess.ErrorDataReceived += (sender, eventArgs) => {
-            if (eventArgs.Data.Contains("Quit")){
-                jarProcess.Kill();
-                pyProcess.Kill();
-            }
-            Console.WriteLine(eventArgs.Data);
-        };
+        var pyProcess = new Process { StartInfo = pyStartInfo, EnableRaisingEvents = true };
 
+        // Handle Python script output
+        pyProcess.OutputDataReceived += (_, e) =>  {
+            if (!string.IsNullOrEmpty(e.Data)) {
+                Console.WriteLine($"[Python STDOUT] {e.Data}");
+                if (e.Data.Contains("Quit")) {
+                    try { jarProcess.Kill(); } catch {}
+                    try { pyProcess.Kill(); } catch {}
+                }
+            }
+        };
+        
+        pyProcess.ErrorDataReceived += (_, e) => {
+            if (!string.IsNullOrEmpty(e.Data)) {
+                Console.WriteLine($"[Python STDERR] {e.Data}");
+                if (e.Data.Contains("Quit")) {
+                    try { jarProcess.Kill(); } catch {}
+                    try { pyProcess.Kill(); } catch {}
+                }
+            }
+        };
+        
+
+        // Start them both
+        jarProcess.Start();
+        pyProcess.Start();
+
+        // Begin async reads
         pyProcess.BeginOutputReadLine();
         pyProcess.BeginErrorReadLine();
 
-        pyProcess.WaitForExit();
+        // Wait for both to exit (but non-blocking)
+        _ = Task.Run(() => jarProcess.WaitForExit());
+        _ = Task.Run(() => pyProcess.WaitForExit());
     }
+    
     catch (Exception ex) {
         Console.WriteLine($"An error occurred: {ex.Message}");
     }
+
     return Task.CompletedTask;
 }
