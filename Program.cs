@@ -15,13 +15,13 @@ async Task StartPlaywrightAsync(){
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
+        Args =["--enable-logging=stderr", "--v=1"] // Enable detailed logs
     });
 
     var page = await browser.NewPageAsync();
-    page.SetDefaultNavigationTimeout(0);
     await page.GotoAsync(url);
 
-    await page.SetViewportSizeAsync(1920, 1080); 
+    await page.SetViewportSizeAsync(1920, 1000); 
     
     page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
@@ -38,16 +38,16 @@ async Task StartPlaywrightAsync(){
 
 Task LaunchJarAsync(string gameName) {
     var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
-    var pythonScriptPath = $"/home/pi/Hämtningar/QuitButton.py";
+    var pythonScriptPath = "/home/pi/Hämtningar/QuitButton.py";
 
     try {
         // Start the JAR
         var jarStartInfo = new ProcessStartInfo {
             FileName = "java",
             Arguments = $"-jar \"{jarFilePath}\"",
+            UseShellExecute        = false,
             RedirectStandardOutput = true,
             RedirectStandardError  = true,
-            UseShellExecute        = false,
             CreateNoWindow         = true
         };
         var jarProcess = new Process { StartInfo = jarStartInfo, EnableRaisingEvents = true };
@@ -85,15 +85,12 @@ Task LaunchJarAsync(string gameName) {
         };
         
 
-        // Start them both
         jarProcess.Start();
         pyProcess.Start();
 
-        // Begin async reads
         pyProcess.BeginOutputReadLine();
         pyProcess.BeginErrorReadLine();
 
-        // Wait for both to exit (but non-blocking)
         _ = Task.Run(() => jarProcess.WaitForExit());
         _ = Task.Run(() => pyProcess.WaitForExit());
     }
