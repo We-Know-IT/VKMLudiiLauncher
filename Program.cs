@@ -52,47 +52,47 @@ Task LaunchJarAsync(string gameName) {
         };
         var jarProcess = new Process { StartInfo = jarStartInfo, EnableRaisingEvents = true };
 
-        // Start the Python script
-        var pyStartInfo = new ProcessStartInfo {
-            FileName = "python",
-            Arguments = pythonScriptPath,
-            UseShellExecute        = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            CreateNoWindow         = true
-        };
-        var pyProcess = new Process { StartInfo = pyStartInfo, EnableRaisingEvents = true };
+        // // Start the Python script
+        // var pyStartInfo = new ProcessStartInfo {
+        //     FileName = "python",
+        //     Arguments = pythonScriptPath,
+        //     UseShellExecute        = false,
+        //     RedirectStandardOutput = true,
+        //     RedirectStandardError  = true,
+        //     CreateNoWindow         = true
+        // };
+        // var pyProcess = new Process { StartInfo = pyStartInfo, EnableRaisingEvents = true };
 
         // Handle Python script output
-        pyProcess.OutputDataReceived += (_, e) =>  {
-            if (!string.IsNullOrEmpty(e.Data)) {
-                Console.WriteLine($"[Python STDOUT] {e.Data}");
-                if (e.Data.Contains("Quit")) {
-                    try { jarProcess.Kill(); } catch {}
-                    try { pyProcess.Kill(); } catch {}
-                }
-            }
-        };
-        
-        pyProcess.ErrorDataReceived += (_, e) => {
-            if (!string.IsNullOrEmpty(e.Data)) {
-                Console.WriteLine($"[Python STDERR] {e.Data}");
-                if (e.Data.Contains("Quit")) {
-                    try { jarProcess.Kill(); } catch {}
-                    try { pyProcess.Kill(); } catch {}
-                }
-            }
-        };
+        // pyProcess.OutputDataReceived += (_, e) =>  {
+        //     if (!string.IsNullOrEmpty(e.Data)) {
+        //         Console.WriteLine($"[Python STDOUT] {e.Data}");
+        //         if (e.Data.Contains("Quit")) {
+        //             try { jarProcess.Kill(); } catch {}
+        //             try { pyProcess.Kill(); } catch {}
+        //         }
+        //     }
+        // };
+        //
+        // pyProcess.ErrorDataReceived += (_, e) => {
+        //     if (!string.IsNullOrEmpty(e.Data)) {
+        //         Console.WriteLine($"[Python STDERR] {e.Data}");
+        //         if (e.Data.Contains("Quit")) {
+        //             try { jarProcess.Kill(); } catch {}
+        //             try { pyProcess.Kill(); } catch {}
+        //         }
+        //     }
+        // };
         
 
         jarProcess.Start();
-        pyProcess.Start();
+        // pyProcess.Start();
 
-        pyProcess.BeginOutputReadLine();
-        pyProcess.BeginErrorReadLine();
+        // pyProcess.BeginOutputReadLine();
+        // pyProcess.BeginErrorReadLine();
 
         _ = Task.Run(() => jarProcess.WaitForExit());
-        _ = Task.Run(() => pyProcess.WaitForExit());
+        // _ = Task.Run(() => pyProcess.WaitForExit());
     }
     
     catch (Exception ex) {
