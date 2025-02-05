@@ -34,6 +34,7 @@ async Task StartPlaywrightAsync(){
         if (gameName.Contains("8080")) {
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
             await LaunchJarAsync(gameName);
+            await page.GotoAsync(url);
         }
     };
     await Task.Delay(-1);
@@ -101,8 +102,9 @@ Task LaunchJarAsync(string gameName) {
             // Keep Python Process Alive
             _ = Task.Run(() => pyProcess.WaitForExit());
         }
-        Console.WriteLine("Starting JAR File:" + jarFilePath);
 
+        
+        Console.WriteLine("Starting JAR File:" + jarFilePath);
         jarProcess.Start();
         // Keep JAR Process Alive
         _ = Task.Run(() => jarProcess.WaitForExit());
