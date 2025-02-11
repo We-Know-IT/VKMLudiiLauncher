@@ -38,7 +38,6 @@ async Task StartPlaywrightAsync(){
 
 Task LaunchJarAsync(string gameName) {
     var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
-    var pythonScriptPath = "/home/pi/Hämtningar/QuitButton.py";
 
     try {
         var jarStartInfo = new ProcessStartInfo {
