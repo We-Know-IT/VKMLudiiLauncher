@@ -2,12 +2,18 @@
 using System.Diagnostics;
 
 
-Console.WriteLine("What is the Exhibition Number?");
-var exhibitionNumber = Console.ReadLine();
+bool isPc = false;
+string luddiiGameFolderAddress = "B:/Projects/VKMLudiiLauncher/Ludii/";
+
+var exhibitionNumber = "1D";
+
+if (isPc){
+    Console.WriteLine("What is the Exhibition Number?");
+    exhibitionNumber = Console.ReadLine();
+}
 
 await StartPlaywrightAsync();
 return;
-
 
 
 async Task StartPlaywrightAsync(){
@@ -15,13 +21,16 @@ async Task StartPlaywrightAsync(){
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
-        Args =["--enable-logging=stderr", "--v=1"]
+        Args =[ "--kiosk", "--enable-logging=stderr", "--v=1"]
     });
 
     var page = await browser.NewPageAsync();
     await page.GotoAsync(url);
+    await page.SetViewportSizeAsync(1920, 1080); 
 
-    await page.SetViewportSizeAsync(1920, 1000); 
+    await Task.Delay(5000); 
+    await page.ClickAsync("body");
+    await page.Keyboard.PressAsync("F11");
     
     page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
@@ -29,7 +38,6 @@ async Task StartPlaywrightAsync(){
 
         if (gameName.Contains("8080")) {
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
-            
             await LaunchJarAsync(gameName);
         }
     };
@@ -38,7 +46,10 @@ async Task StartPlaywrightAsync(){
 
 Task LaunchJarAsync(string gameName) {
     var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
-    var pythonScriptPath = "/home/pi/Hämtningar/QuitButton.py";
+    
+    if (isPc){
+        jarFilePath = $"{luddiiGameFolderAddress}{gameName}.jar";
+    }
 
     try {
         var jarStartInfo = new ProcessStartInfo {
