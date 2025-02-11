@@ -2,13 +2,15 @@
 using System.Diagnostics;
 
 
-bool isPc = true;
+bool isPc = false;
 string luddiiGameFolderAddress = "B:/Projects/VKMLudiiLauncher/Ludii/";
 
-bool launchQuitButton = true;
+var exhibitionNumber = "1D";
 
-Console.WriteLine("What is the Exhibition Number?");
-var exhibitionNumber = Console.ReadLine();
+if (isPc){
+    Console.WriteLine("What is the Exhibition Number?");
+    exhibitionNumber = Console.ReadLine();
+}
 
 await StartPlaywrightAsync();
 return;
@@ -19,13 +21,16 @@ async Task StartPlaywrightAsync(){
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
-        Args =["--enable-logging=stderr", "--v=1"]
+        Args =[ "--kiosk", "--enable-logging=stderr", "--v=1"]
     });
 
     var page = await browser.NewPageAsync();
     await page.GotoAsync(url);
+    await page.SetViewportSizeAsync(1920, 1080); 
 
-    await page.SetViewportSizeAsync(1920, 1000); 
+    await Task.Delay(5000); 
+    await page.ClickAsync("body");
+    await page.Keyboard.PressAsync("F11");
     
     page.Request += async (_, request) =>  {
         Console.WriteLine("Request event: " + request.Url);
@@ -34,7 +39,6 @@ async Task StartPlaywrightAsync(){
         if (gameName.Contains("8080")) {
             gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
             await LaunchJarAsync(gameName);
-            await page.GotoAsync(url);
         }
     };
     await Task.Delay(-1);
@@ -45,7 +49,6 @@ Task LaunchJarAsync(string gameName) {
     
     if (isPc){
         jarFilePath = $"{luddiiGameFolderAddress}{gameName}.jar";
-        launchQuitButton = false;
     }
 
     try {
@@ -59,50 +62,6 @@ Task LaunchJarAsync(string gameName) {
             CreateNoWindow         = true
         };
         var jarProcess = new Process { StartInfo = jarStartInfo, EnableRaisingEvents = true };
-
-        // Start the Python Quit Button
-        if (launchQuitButton){
-            var pythonScriptPath = "/home/pi/Hämtningar/QuitButton.py";
-            var pyStartInfo = new ProcessStartInfo {
-                FileName = "python",
-                Arguments = pythonScriptPath,
-                UseShellExecute        = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                CreateNoWindow         = true
-            };
-            var pyProcess = new Process { StartInfo = pyStartInfo, EnableRaisingEvents = true };
-
-            // Read Python Quit Button Output
-            pyProcess.OutputDataReceived += (_, e) =>  {
-                if (!string.IsNullOrEmpty(e.Data)) {
-                    Console.WriteLine($"[Python STDOUT] {e.Data}");
-                    if (e.Data.Contains("Quit")) {
-                        try { jarProcess.Kill(); } catch {}
-                        try { pyProcess.Kill(); } catch {}
-                    }
-                }
-            };
-            
-            pyProcess.ErrorDataReceived += (_, e) => {
-                if (!string.IsNullOrEmpty(e.Data)) {
-                    Console.WriteLine($"[Python STDERR] {e.Data}");
-                    // Quits JAR Process
-                    if (e.Data.Contains("Quit")) {
-                        try { jarProcess.Kill(); } catch {}
-                        try { pyProcess.Kill(); } catch {}
-                    }
-                }
-            };
-            
-            pyProcess.Start();
-
-            pyProcess.BeginOutputReadLine();
-            pyProcess.BeginErrorReadLine();
-            // Keep Python Process Alive
-            _ = Task.Run(() => pyProcess.WaitForExit());
-        }
-
         
         Console.WriteLine("Starting JAR File:" + jarFilePath);
         jarProcess.Start();
