@@ -15,7 +15,7 @@ async Task StartPlaywrightAsync(){
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions {
         Headless = false,
-        Args =["--enable-logging=stderr", "--v=1"] // Enable detailed logs
+        Args =["--enable-logging=stderr", "--v=1"]
     });
 
     var page = await browser.NewPageAsync();
@@ -41,7 +41,6 @@ Task LaunchJarAsync(string gameName) {
     var pythonScriptPath = "/home/pi/Hämtningar/QuitButton.py";
 
     try {
-        // Start the JAR
         var jarStartInfo = new ProcessStartInfo {
             FileName = "java",
             Arguments = $"-jar \"{jarFilePath}\"",
@@ -51,48 +50,12 @@ Task LaunchJarAsync(string gameName) {
             CreateNoWindow         = true
         };
         var jarProcess = new Process { StartInfo = jarStartInfo, EnableRaisingEvents = true };
-
-        // // Start the Python script
-        // var pyStartInfo = new ProcessStartInfo {
-        //     FileName = "python",
-        //     Arguments = pythonScriptPath,
-        //     UseShellExecute        = false,
-        //     RedirectStandardOutput = true,
-        //     RedirectStandardError  = true,
-        //     CreateNoWindow         = true
-        // };
-        // var pyProcess = new Process { StartInfo = pyStartInfo, EnableRaisingEvents = true };
-
-        // Handle Python script output
-        // pyProcess.OutputDataReceived += (_, e) =>  {
-        //     if (!string.IsNullOrEmpty(e.Data)) {
-        //         Console.WriteLine($"[Python STDOUT] {e.Data}");
-        //         if (e.Data.Contains("Quit")) {
-        //             try { jarProcess.Kill(); } catch {}
-        //             try { pyProcess.Kill(); } catch {}
-        //         }
-        //     }
-        // };
-        //
-        // pyProcess.ErrorDataReceived += (_, e) => {
-        //     if (!string.IsNullOrEmpty(e.Data)) {
-        //         Console.WriteLine($"[Python STDERR] {e.Data}");
-        //         if (e.Data.Contains("Quit")) {
-        //             try { jarProcess.Kill(); } catch {}
-        //             try { pyProcess.Kill(); } catch {}
-        //         }
-        //     }
-        // };
         
 
         jarProcess.Start();
-        // pyProcess.Start();
-
-        // pyProcess.BeginOutputReadLine();
-        // pyProcess.BeginErrorReadLine();
+        
 
         _ = Task.Run(() => jarProcess.WaitForExit());
-        // _ = Task.Run(() => pyProcess.WaitForExit());
     }
     
     catch (Exception ex) {
