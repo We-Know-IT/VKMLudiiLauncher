@@ -1,77 +1,164 @@
 ﻿using Microsoft.Playwright;
 using System.Diagnostics;
 
+public class Program
+{
+    // Global/shared variables:
+    static bool isPc = false;
+    static string luddiiGameFolderAddress = "B:/Projects/VKMLudiiLauncher/Ludii/";
+    static string originalUrl;
+    static Process? currentJarProcess = null;
+    static IPage? mainPage = null;
 
-bool isPc = false;
-string luddiiGameFolderAddress = "B:/Projects/VKMLudiiLauncher/Ludii/";
-
-var exhibitionNumber = "1D";
-
-
-await StartPlaywrightAsync();
-return;
-
-async Task StartPlaywrightAsync(){
-    var url = $"http://gamescreen.smvk.se/{exhibitionNumber}";
-    
-    var launchOptions = new BrowserTypeLaunchOptions
+    public static async Task Main(string[] args)
     {
-        Headless = false,
-        Args = new List<string> {"--kiosk"}
-    };
-    
-    using var playwright = await Playwright.CreateAsync();
-    await using var browser = await playwright.Firefox.LaunchAsync(launchOptions);
-    
-    var context = await browser.NewContextAsync(new BrowserNewContextOptions
-    {
-        ViewportSize = ViewportSize.NoViewport
-    });
-    
-    var page = await context.NewPageAsync();
-    await page.GotoAsync(url);
-    
-    page.Request += async (_, request) =>  {
-        Console.WriteLine("Request event: " + request.Url);
-        var gameName = request.Url;
+        // Use the first command line argument if provided; otherwise, use a default value.
+        string exhibitionNumber = args.Length > 0 ? args[0] : "defaultExhibition";
+        originalUrl = $"http://gamescreen.smvk.se/{exhibitionNumber}";
 
-        if (gameName.Contains("8080")) {
-            gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
-            await LaunchJarAsync(gameName);
-            await page.GotoAsync(url);
-        }
-    };
-    await Task.Delay(-1);
-}
+        // Start both the Playwright browser and the popup loop concurrently.
+        Task playwrightTask = StartPlaywrightAsync();
+        Task popupTask = PopupLoopAsync();
 
-Task LaunchJarAsync(string gameName) {
-    var jarFilePath = $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
-    
-    if (isPc){
-        jarFilePath = $"{luddiiGameFolderAddress}{gameName}.jar";
+        await Task.WhenAll(playwrightTask, popupTask);
     }
 
-    try {
-        var jarStartInfo = new ProcessStartInfo {
-            FileName = "java",
-            Arguments = $"-jar \"{jarFilePath}\"",
-            UseShellExecute        = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            CreateNoWindow         = true
+    static async Task StartPlaywrightAsync()
+    {
+        // Launch the browser with kiosk mode and no viewport (full screen)
+        var launchOptions = new BrowserTypeLaunchOptions
+        {
+            Headless = false,
+            Args = new List<string> { "--kiosk" }
         };
-        var jarProcess = new Process { StartInfo = jarStartInfo, EnableRaisingEvents = true };
-        
 
-        jarProcess.Start();
-        
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Firefox.LaunchAsync(launchOptions);
 
-        _ = Task.Run(() => jarProcess.WaitForExit());
+        var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = ViewportSize.NoViewport
+        });
+
+        var page = await context.NewPageAsync();
+        mainPage = page; // Save a reference so the popup loop can navigate back.
+        await page.GotoAsync(originalUrl);
+
+        // Listen to requests that indicate a jar file should be launched.
+        page.Request += async (_, request) =>
+        {
+            Console.WriteLine("Request event: " + request.Url);
+            var gameName = request.Url;
+            if (gameName.Contains("8080"))
+            {
+                // Extract the game name from the URL.
+                gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
+                await LaunchJarAsync(gameName);
+                await page.GotoAsync(originalUrl);
+            }
+        };
+
+        // Keep the browser running indefinitely.
+        await Task.Delay(-1);
     }
-    
-    catch (Exception ex) {
-        Console.WriteLine($"An error occurred: {ex.Message}");
+
+    static Task LaunchJarAsync(string gameName)
+    {
+        // Determine the jar file path based on the platform.
+        var jarFilePath = isPc
+            ? $"{luddiiGameFolderAddress}{gameName}.jar"
+            : $"/home/pi/Hämtningar/Ludii/{gameName}.jar";
+
+        try
+        {
+            var jarStartInfo = new ProcessStartInfo
+            {
+                FileName = "java",
+                Arguments = $"-jar \"{jarFilePath}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            var jarProcess = new Process { StartInfo = jarStartInfo, EnableRaisingEvents = true };
+            jarProcess.Start();
+            // Save the process reference so it can be killed on timeout.
+            currentJarProcess = jarProcess;
+            _ = Task.Run(() => jarProcess.WaitForExit());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred: {ex.Message}");
+        }
+
+        return Task.CompletedTask;
     }
 
-    return Task.CompletedTask;
+    /// <summary>
+    /// Runs a loop that waits 180 seconds before showing a popup.
+    /// If the popup times out (after 10 seconds), it kills the jar process and returns the page to the original URL.
+    /// </summary>
+    static async Task PopupLoopAsync()
+    {
+        while (true)
+        {
+            // Wait for 180 seconds between popups.
+            await Task.Delay(TimeSpan.FromSeconds(20));
+
+            int exitCode = await ShowPopupAsync();
+            Console.WriteLine("Popup exit code: " + exitCode);
+
+            // If exit code is 5, the dialog timed out (i.e. button not clicked in 10 seconds).
+            if (exitCode == 5)
+            {
+                Console.WriteLine("Popup timed out: closing jar process and returning to the original URL.");
+
+                // Kill the jar process if it's running.
+                if (currentJarProcess != null && !currentJarProcess.HasExited)
+                {
+                    try
+                    {
+                        currentJarProcess.Kill();
+                        currentJarProcess = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Error killing jar process: " + ex.Message);
+                    }
+                }
+
+                // Navigate back to the original URL in the Playwright page.
+                if (mainPage != null)
+                {
+                    await mainPage.GotoAsync(originalUrl);
+                }
+            }
+            // If the user clicked the button (exit code 0), simply restart the timer.
+        }
+    }
+
+    /// <summary>
+    /// Shows a Zenity info dialog with a 10-second timeout and one "OK" button.
+    /// Returns the exit code (exit code 5 indicates a timeout).
+    /// </summary>
+    static async Task<int> ShowPopupAsync()
+    {
+        var processInfo = new ProcessStartInfo
+        {
+            FileName = "zenity",
+            // Use double quotes for the text argument.
+            Arguments = "--info --timeout=10 --text=\"Are you still here? Press OK to continue.\nÄr du fortfarande här? Tryck på OK för att fortsätta.-\" --width=400 --height=200",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        // Ensure the dialog shows on the active display.
+        processInfo.Environment["DISPLAY"] = ":0";
+
+        using var process = Process.Start(processInfo);
+        await process.WaitForExitAsync();
+        return process.ExitCode;
+    }
 }
