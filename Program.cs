@@ -9,12 +9,27 @@ public class Program
     static string originalUrl;
     static Process? currentJarProcess = null;
     static IPage? mainPage = null;
-
+    
+    // Default values
+    static int popupDelaySeconds = 180;  // Delay before showing popup
+    static int popupTimeoutSeconds = 10; // How long popup is shown
     public static async Task Main(string[] args)
     {
-        // Use the first command line argument if provided; otherwise, use a default value.
-        string exhibitionNumber = args.Length > 0 ? args[0] : "defaultExhibition";
+        // 1st argument: exhibitionNumber (default: "1A")
+        string exhibitionNumber = args.Length > 0 ? args[0] : "1A";
         originalUrl = $"http://gamescreen.smvk.se/{exhibitionNumber}";
+
+        // 2nd argument: popup delay in seconds (default: 180)
+        if (args.Length > 1 && int.TryParse(args[1], out int delay))
+        {
+            popupDelaySeconds = delay;
+        }
+
+        // 3rd argument: popup timeout in seconds (default: 10)
+        if (args.Length > 2 && int.TryParse(args[2], out int timeout))
+        {
+            popupTimeoutSeconds = timeout;
+        }
 
         // Start both the Playwright browser and the popup loop concurrently.
         Task playwrightTask = StartPlaywrightAsync();
@@ -43,6 +58,7 @@ public class Program
         var page = await context.NewPageAsync();
         mainPage = page; // Save a reference so the popup loop can navigate back.
         await page.GotoAsync(originalUrl);
+        await page.AddStyleTagAsync(new PageAddStyleTagOptions { Content = "body { cursor: none; }" });
 
         // Listen to requests that indicate a jar file should be launched.
         page.Request += async (_, request) =>
@@ -55,6 +71,7 @@ public class Program
                 gameName = gameName.Substring(gameName.IndexOf("8080/") + 5);
                 await LaunchJarAsync(gameName);
                 await page.GotoAsync(originalUrl);
+                await page.AddStyleTagAsync(new PageAddStyleTagOptions { Content = "body { cursor: none; }" });
             }
         };
 
@@ -104,7 +121,7 @@ public class Program
         while (true)
         {
             // Wait for 180 seconds between popups.
-            await Task.Delay(TimeSpan.FromSeconds(20));
+            await Task.Delay(TimeSpan.FromSeconds(popupDelaySeconds));
 
             int exitCode = await ShowPopupAsync();
             Console.WriteLine("Popup exit code: " + exitCode);
@@ -148,7 +165,7 @@ public class Program
         {
             FileName = "zenity",
             // Use double quotes for the text argument.
-            Arguments = "--info --timeout=10 --text=\"Are you still here? Press OK to continue.\nÄr du fortfarande här? Tryck på OK för att fortsätta.-\" --width=400 --height=200",
+            Arguments = $"--info --timeout={popupTimeoutSeconds} --text=\"Are you still here? Press OK to continue.\nÄr du fortfarande här? Tryck på OK för att fortsätta.\"",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true
